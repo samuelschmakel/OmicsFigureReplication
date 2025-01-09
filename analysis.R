@@ -1,9 +1,14 @@
 library(ggplot2)
 library(DESeq2)
 library(GEOquery)
+library(pheatmap)
+library(clusterProfiler)
+library(org.Hs.eg.db)
 
 rm(list = ls(all.names = TRUE))
 gc()
+
+source("scripts/helper_functions.R")
 
 # Load file (separator is space by default)
 raw_data <- as.matrix(read.delim2("data/GSE282850_tovar-nishino_rnaseq_raw_counts.txt", header = TRUE, stringsAsFactors = FALSE))
@@ -38,57 +43,81 @@ dds$condition <- relevel(dds$condition, ref = "undiff")
 
 # DEG analysis
 dds <- DESeq(dds)
-res <- results(dds, name="condition_diff_vs_undiff", alpha=0.05, lfcThreshold=.6)
-res
 
-# Calculate p-values and adjusted p-values
-resOrdered <- res[order(res$pvalue),]
+# Generate results
+alpha <- 0.05
+lfcThreshold <- 0.6
 
-summary(res)
-
-# MA-plot
-plotMA(res, ylim=c(-2,2))
+res_diff_vs_undiff <- results(dds, contrast = c("condition", "diff", "undiff"), alpha = alpha, lfcThreshold = lfcThreshold)
+res_AICAR_vs_undiff <- results(dds, contrast = c("condition", "AICAR", "undiff"), alpha = alpha, lfcThreshold = lfcThreshold)
+res_palmitate_vs_undiff <- results(dds, contrast = c("condition", "palmitate", "undiff"), alpha = alpha, lfcThreshold = lfcThreshold)
+res_diff_vs_AICAR <- results(dds, contrast = c("condition", "diff", "AICAR"), alpha = alpha, lfcThreshold = lfcThreshold)
+res_diff_vs_palmitate <- results(dds, contrast = c("condition", "diff", "palmitate"), alpha = alpha, lfcThreshold = lfcThreshold)
+res_AICAR_vs_palmitate <- results(dds, contrast = c("condition", "AICAR", "palmitate"), alpha = alpha, lfcThreshold = lfcThreshold)
 
 #### PCA Plot ####
+normalized_counts <- PCA_plotting(dds)
 
-# Perform rlog transformation
-rld <- rlog(dds, blind = TRUE)
+#### DEG list output ####
+diff_vs_undiff_DEGs <- as.data.frame(res_diff_vs_undiff[res_diff_vs_undiff$padj < 0.05 & abs(res_diff_vs_undiff$log2FoldChange) > 0.6,])
 
+diff_vs_undiff_DEG_counts <- as.data.frame(normalized_counts[rownames(normalized_counts) %in% rownames(diff_vs_undiff_DEGs),])
 
-plotPCA(rld, intgroup = "condition")
+# Only keep samples that are involved in this comparison
+diff_vs_undiff_DEG_counts <- diff_vs_undiff_DEG_counts[,1:8]
 
+# Add direction of regulation
+diff_vs_undiff_DEG_counts$regulation <- ifelse(diff_vs_undiff_DEGs$log2FoldChange > 0, "Upregulated", "Downregulated")
 
-# Extract transformed counts
-normalized_counts <- assay(rld)
+# Split matrix by regulation direction
+upregulated <- rownames(diff_vs_undiff_DEG_counts[diff_vs_undiff_DEG_counts$regulation == "Upregulated", ])
+downregulated <- rownames(diff_vs_undiff_DEG_counts[diff_vs_undiff_DEG_counts$regulation == "Downregulated", ])
 
-# Alternatively, use vst:
-# vst <- vst(dds, blind = TRUE)
-# plotPCA(vst, intgroup = "condition")
-# pca_data <- assay(vst)
+# Reorder matrix
+diff_vs_undiff_DEG_counts <- diff_vs_undiff_DEG_counts[c(upregulated, downregulated), ]
 
-pca <- prcomp(t(normalized_counts))
+# Annotation for gene regulation
+annotation_row <- data.frame(Regulation = diff_vs_undiff_DEG_counts$regulation)
+rownames(annotation_row) <- rownames(diff_vs_undiff_DEG_counts)
 
-percentVar <- round(100 * (pca$sdev^2 / sum(pca$sdev^2)), 1)
+# After ordering the data, remove the 'regulation' column before passing the matrix to pheatmap
+diff_vs_undiff_DEG_counts_numeric <- diff_vs_undiff_DEG_counts[, -ncol(diff_vs_undiff_DEG_counts)]
 
-# Create a data frame for ggplot
-pca_df <- data.frame(
-  PC1 = pca$x[, 1],
-  PC2 = pca$x[, 2],
-  condition = colData(dds)$condition
+# Create heatmap
+pheatmap(
+  diff_vs_undiff_DEG_counts_numeric, 
+  cluster_rows = TRUE, 
+  cluster_cols = TRUE, 
+  annotation_row = annotation_row,
+  scale = "row",  # Normalize rows to Z-scores
+  color = colorRampPalette(c("blue", "white", "red"))(50),
+  main = "Heatmap of DEGs"
 )
 
-# Figure 2a
-ggplot(pca_df, aes(x = PC1, y = PC2, color = condition, shape = condition)) +
-  geom_point(size = 3, color = "black", aes(fill = condition)) +
-  scale_shape_manual(values = c(24, 21, 21, 21)) +
-  scale_fill_manual(values = c("red", "yellow", "green", "blue"))  +
-  xlab(paste0("PC1: ", percentVar[1], "% variance")) +
-  ylab(paste0("PC2: ", percentVar[2], "% variance")) +
-  ggtitle("PCA of Gene Expression by Condition") +
-  theme_bw()
+#### GO Enrichment Analysis ####
 
-### DEG list output ###
+# Create Entrez DEG List
 
-DEGs <- as.data.frame(res[res$padj < 0.05 & abs(res$log2FoldChange) > 0.6,])
-DEGsup <- DEGs[DEGs$log2FoldChange > 0,]
-DEGsdown <- DEGs[DEGs$log2FoldChange < 0,]
+genes <- rownames(diff_vs_undiff_DEG_counts)
+# Remove version numbers from Ensembl Ids
+genes <- gsub("\\..*$", "", genes)
+
+entrez_ids <- bitr(genes, fromType = "ENSEMBL", toType = "ENTREZID", OrgDb = org.Hs.eg.db)
+
+entrez_gene_list <- entrez_ids$ENTREZID
+
+go_results <- enrichGO(
+  gene          = entrez_gene_list, 
+  OrgDb         = org.Hs.eg.db,
+  ont           = "BP",             # Ontology: "BP" (Biological Process), "MF" (Molecular Function), or "CC" (Cellular Component)
+  pAdjustMethod = "BH",             # Adjust p-values for multiple testing
+  pvalueCutoff  = 0.05, 
+  qvalueCutoff  = 0.05,
+  readable      = TRUE              # Convert Entrez IDs to gene symbols
+)
+
+# Visualize results
+barplot(go_results, showCategory = 10)  # Top 10 enriched categories
+
+dotplot(go_results, showCategory = 10)
+cnetplot(go_results, showCategory = 5)
