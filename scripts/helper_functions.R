@@ -20,7 +20,7 @@ PCA_plotting <- function(dds) {
   )
   
   # Figure 2a
-  ggplot(pca_df, aes(x = PC1, y = PC2, color = condition, shape = condition)) +
+  pca_plot <- ggplot(pca_df, aes(x = PC1, y = PC2, color = condition, shape = condition)) +
     geom_point(size = 3, color = "black", aes(fill = condition)) +
     scale_shape_manual(values = c(24, 21, 21, 21)) +
     scale_fill_manual(values = c("red", "yellow", "green", "blue"))  +
@@ -28,6 +28,13 @@ PCA_plotting <- function(dds) {
     ylab(paste0("PC2: ", percentVar[2], "% variance")) +
     ggtitle("PCA of Gene Expression by Condition") +
     theme_bw()
+  
+  # Save the results into the results folder
+  if (!dir.exists("results")) {
+    dir.create("results")
+  }
+  
+  ggsave(filename = "results/figure2a.png", plot = pca_plot, width = 8, height = 6, dpi = 300)
   
   return (normalized_counts)
 }

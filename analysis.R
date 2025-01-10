@@ -95,14 +95,38 @@ pheatmap(
 )
 
 #### GO Enrichment Analysis ####
+upregulated <- rownames(diff_vs_undiff_DEG_counts[diff_vs_undiff_DEG_counts$regulation == "Upregulated",])
+downregulated <- rownames(diff_vs_undiff_DEG_counts[diff_vs_undiff_DEG_counts$regulation == "Downregulated",])
 
 # Create Entrez DEG List
 
-genes <- rownames(diff_vs_undiff_DEG_counts)
 # Remove version numbers from Ensembl Ids
-genes <- gsub("\\..*$", "", genes)
+up_genes <- gsub("\\..*$", "", upregulated)
+down_genes <- gsub("\\..*$", "", downregulated)
 
-entrez_ids <- bitr(genes, fromType = "ENSEMBL", toType = "ENTREZID", OrgDb = org.Hs.eg.db)
+# upregulated genes
+entrez_ids <- bitr(up_genes, fromType = "ENSEMBL", toType = "ENTREZID", OrgDb = org.Hs.eg.db)
+
+entrez_gene_list <- entrez_ids$ENTREZID
+
+go_results <- enrichGO(
+  gene          = entrez_gene_list, 
+  OrgDb         = org.Hs.eg.db,
+  ont           = "BP",             # Ontology: "BP" (Biological Process), "MF" (Molecular Function), or "CC" (Cellular Component)
+  pAdjustMethod = "BH",             # Adjust p-values for multiple testing
+  pvalueCutoff  = 0.05, 
+  qvalueCutoff  = 0.05,
+  readable      = TRUE              # Convert Entrez IDs to gene symbols
+)
+
+# Visualize results
+barplot(go_results, showCategory = 10)  # Top 10 enriched categories
+
+dotplot(go_results, showCategory = 10)
+cnetplot(go_results, showCategory = 5)
+
+# downregulated genes
+entrez_ids <- bitr(down_genes, fromType = "ENSEMBL", toType = "ENTREZID", OrgDb = org.Hs.eg.db)
 
 entrez_gene_list <- entrez_ids$ENTREZID
 
