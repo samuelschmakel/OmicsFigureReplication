@@ -38,3 +38,67 @@ PCA_plotting <- function(dds) {
   
   return (normalized_counts)
 }
+
+GO_enrichment <- function(counts, name) {
+  upregulated <- rownames(counts[diff_vs_undiff_DEG_counts$regulation == "Upregulated",])
+  downregulated <- rownames(counts[diff_vs_undiff_DEG_counts$regulation == "Downregulated",])
+  
+  # Remove version numbers from Ensembl Ids
+  up_genes <- gsub("\\..*$", "", upregulated)
+  down_genes <- gsub("\\..*$", "", downregulated)
+  
+  # upregulated genes
+  entrez_ids <- bitr(up_genes, fromType = "ENSEMBL", toType = "ENTREZID", OrgDb = org.Hs.eg.db)
+  
+  entrez_gene_list <- entrez_ids$ENTREZID
+  
+  go_results <- enrichGO(
+    gene          = entrez_gene_list, 
+    OrgDb         = org.Hs.eg.db,
+    ont           = "BP",             # Ontology: "BP" (Biological Process), "MF" (Molecular Function), or "CC" (Cellular Component)
+    pAdjustMethod = "BH",             # Adjust p-values for multiple testing
+    pvalueCutoff  = 0.05, 
+    qvalueCutoff  = 0.05,
+    readable      = TRUE              # Convert Entrez IDs to gene symbols
+  )
+  
+  bplot_up <- barplot(go_results, showCategory = 10)
+  
+  # downregulated genes
+  entrez_ids <- bitr(down_genes, fromType = "ENSEMBL", toType = "ENTREZID", OrgDb = org.Hs.eg.db)
+  
+  entrez_gene_list <- entrez_ids$ENTREZID
+  
+  go_results <- enrichGO(
+    gene          = entrez_gene_list, 
+    OrgDb         = org.Hs.eg.db,
+    ont           = "BP",             # Ontology: "BP" (Biological Process), "MF" (Molecular Function), or "CC" (Cellular Component)
+    pAdjustMethod = "BH",             # Adjust p-values for multiple testing
+    pvalueCutoff  = 0.05, 
+    qvalueCutoff  = 0.05,
+    readable      = TRUE              # Convert Entrez IDs to gene symbols
+  )
+  
+  bplot_down <- barplot(go_results, showCategory = 10)
+  
+  #dotplot(go_results, showCategory = 10)
+  #cnetplot(go_results, showCategory = 5)
+  
+  # ensure the directory exists, if it doesn't, create it
+  if (!dir.exists("results")) {
+    dir.create("results")
+  }
+  
+  if (name == "diff_vs_undiff") {
+    ggsave(filename = "results/figure2c_diff_GOterms.png", plot = bplot_up, width = 8, height = 6, dpi = 300)
+    ggsave(filename = "results/figure2c_undiff_GOterms.png", plot = bplot_down, width = 8, height = 6, dpi = 300)
+  } else if (name == "diff_vs_AICAR") {
+    ggsave(filename = "results/figure2e_diff_GOterms.png", plot = bplot_up, width = 8, height = 6, dpi = 300)
+    ggsave(filename = "results/figure2e_AICAR_GOterms.png", plot = bplot_down, width = 8, height = 6, dpi = 300)
+  } else if (name == "diff_vs_palmitate") {
+    ggsave(filename = "results/figure2f_diff_GOterms.png", plot = bplot_up, width = 8, height = 6, dpi = 300)
+    ggsave(filename = "results/figure2f_palmitate_GOterms.png", plot = bplot_down, width = 8, height = 6, dpi = 300)
+  } else {
+    print("Invalid comparison name")
+  }
+}
