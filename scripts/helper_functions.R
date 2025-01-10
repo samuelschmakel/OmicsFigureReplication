@@ -39,9 +39,38 @@ PCA_plotting <- function(dds) {
   return (normalized_counts)
 }
 
+get_counts <- function(res, normalized_counts, alpha, lfcThreshold) {
+  DEGs <- as.data.frame(res[res$padj < alpha & abs(res$log2FoldChange) > lfcThreshold,])
+  
+  return (as.data.frame(normalized_counts[rownames(normalized_counts) %in% rownames(DEGs),]))
+}
+
+reorder_counts <- function(cts, DEG_info) {
+  # Add direction of regulation
+  DEG_info <- DEG_info[rownames(cts),]
+  
+  cts$regulation <- ifelse(DEG_info$log2FoldChange > 0, "Upregulated", "Downregulated")
+  
+  # Split matrix by regulation direction
+  upregulated <- rownames(cts[cts$regulation == "Upregulated", ])
+  downregulated <- rownames(cts[cts$regulation == "Downregulated", ])
+  
+  # Reorder matrix
+  cts <- cts[c(upregulated, downregulated), ]
+  
+  # Annotation for gene regulation
+  annotation_row <- data.frame(Regulation = cts$regulation)
+  rownames(annotation_row) <- rownames(cts)
+  
+  # After ordering the data, remove the 'regulation' column before passing the matrix to pheatmap
+  cts_numeric <- cts[, -ncol(cts)]
+  
+  return (list(cts = cts_numeric, annotation = annotation_row))
+}
+
 GO_enrichment <- function(counts, name) {
-  upregulated <- rownames(counts[diff_vs_undiff_DEG_counts$regulation == "Upregulated",])
-  downregulated <- rownames(counts[diff_vs_undiff_DEG_counts$regulation == "Downregulated",])
+  upregulated <- rownames(counts[cts$regulation == "Upregulated",])
+  downregulated <- rownames(counts[cts$regulation == "Downregulated",])
   
   # Remove version numbers from Ensembl Ids
   up_genes <- gsub("\\..*$", "", upregulated)

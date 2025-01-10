@@ -59,36 +59,33 @@ res_AICAR_vs_palmitate <- results(dds, contrast = c("condition", "AICAR", "palmi
 normalized_counts <- PCA_plotting(dds)
 
 #### DEG list output ####
-diff_vs_undiff_DEGs <- as.data.frame(res_diff_vs_undiff[res_diff_vs_undiff$padj < 0.05 & abs(res_diff_vs_undiff$log2FoldChange) > 0.6,])
-
-diff_vs_undiff_DEG_counts <- as.data.frame(normalized_counts[rownames(normalized_counts) %in% rownames(diff_vs_undiff_DEGs),])
+diff_vs_undiff_DEG_counts <- get_counts(res_diff_vs_undiff, normalized_counts, alpha, lfcThreshold)
+AICAR_vs_undiff_DEG_counts <- get_counts(res_AICAR_vs_undiff, normalized_counts, alpha, lfcThreshold)
+palmitate_vs_undiff_DEG_counts <- get_counts(res_palmitate_vs_undiff, normalized_counts, alpha, lfcThreshold)
+diff_vs_AICAR_DEG_counts <- get_counts(res_diff_vs_AICAR, normalized_counts, alpha, lfcThreshold)
+diff_vs_palmitate_DEG_counts <- get_counts(res_AICAR_vs_undiff, normalized_counts, alpha, lfcThreshold)
+AICAR_vs_palmitate_DEG_counts <- get_counts(res_AICAR_vs_palmitate, normalized_counts, alpha, lfcThreshold)
 
 # Only keep samples that are involved in this comparison
 diff_vs_undiff_DEG_counts <- diff_vs_undiff_DEG_counts[,1:8]
+AICAR_vs_undiff_DEG_counts <- AICAR_vs_undiff_DEG_counts[,c(1:4,9:11)]
+palmitate_vs_undiff_DEG_counts <- palmitate_vs_undiff_DEG_counts[,c(1:4,12:15)]
+diff_vs_AICAR_DEG_counts <- diff_vs_AICAR_DEG_counts[,5:11]
+diff_vs_palmitate_DEG_counts <- diff_vs_palmitate_DEG_counts[,c(5:8,12:15)]
+AICAR_vs_palmitate_DEG_counts <- AICAR_vs_palmitate_DEG_counts[,9:15]
 
-# Add direction of regulation
-diff_vs_undiff_DEG_counts$regulation <- ifelse(diff_vs_undiff_DEGs$log2FoldChange > 0, "Upregulated", "Downregulated")
+# Get logfoldchange information from the res object for each comparison:
+diff_vs_undiff_DEGs <- as.data.frame(res_diff_vs_undiff)
 
-# Split matrix by regulation direction
-upregulated <- rownames(diff_vs_undiff_DEG_counts[diff_vs_undiff_DEG_counts$regulation == "Upregulated", ])
-downregulated <- rownames(diff_vs_undiff_DEG_counts[diff_vs_undiff_DEG_counts$regulation == "Downregulated", ])
-
-# Reorder matrix
-diff_vs_undiff_DEG_counts <- diff_vs_undiff_DEG_counts[c(upregulated, downregulated), ]
-
-# Annotation for gene regulation
-annotation_row <- data.frame(Regulation = diff_vs_undiff_DEG_counts$regulation)
-rownames(annotation_row) <- rownames(diff_vs_undiff_DEG_counts)
-
-# After ordering the data, remove the 'regulation' column before passing the matrix to pheatmap
-diff_vs_undiff_DEG_counts_numeric <- diff_vs_undiff_DEG_counts[, -ncol(diff_vs_undiff_DEG_counts)]
+# Now, set up the counts matrix for the heatmap, and create the annotation row:
+diff_vs_undiff_heatmap_list <- reorder_counts(diff_vs_undiff_DEG_counts, diff_vs_undiff_DEGs)
 
 # Create heatmap
 pheatmap(
-  diff_vs_undiff_DEG_counts_numeric, 
+  diff_vs_undiff_heatmap_list$cts, 
   cluster_rows = TRUE, 
   cluster_cols = TRUE, 
-  annotation_row = annotation_row,
+  annotation_row = diff_vs_undiff_heatmap_list$annotation,
   scale = "row",  # Normalize rows to Z-scores
   color = colorRampPalette(c("blue", "white", "red"))(50),
   main = "Heatmap of DEGs"
