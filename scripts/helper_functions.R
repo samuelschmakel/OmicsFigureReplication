@@ -69,8 +69,8 @@ reorder_counts <- function(cts, DEG_info) {
 }
 
 GO_enrichment <- function(counts, name) {
-  upregulated <- rownames(counts[cts$regulation == "Upregulated",])
-  downregulated <- rownames(counts[cts$regulation == "Downregulated",])
+  upregulated <- rownames(counts[counts$regulation == "Upregulated",])
+  downregulated <- rownames(counts[counts$regulation == "Downregulated",])
   
   # Remove version numbers from Ensembl Ids
   up_genes <- gsub("\\..*$", "", upregulated)

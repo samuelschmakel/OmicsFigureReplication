@@ -77,7 +77,7 @@ AICAR_vs_palmitate_DEG_counts <- AICAR_vs_palmitate_DEG_counts[,9:15]
 # Get logfoldchange information from the res object for each comparison:
 diff_vs_undiff_DEGs <- as.data.frame(res_diff_vs_undiff)
 
-# Now, set up the counts matrix for the heatmap, and create the annotation row:
+# Now, set up the counts matrix for the heatmap, and create the annotation row (saved in the returned list):
 diff_vs_undiff_heatmap_list <- reorder_counts(diff_vs_undiff_DEG_counts, diff_vs_undiff_DEGs)
 
 # Create heatmap
@@ -92,4 +92,4 @@ pheatmap(
 )
 
 #### GO Enrichment Analysis ####
-GO_enrichment(diff_vs_undiff_DEG_counts, "diff_vs_undiff")
+#GO_enrichment(diff_vs_undiff_DEG_counts, "diff_vs_undiff")
