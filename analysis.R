@@ -46,7 +46,7 @@ dds <- DESeq(dds)
 
 # Generate results
 alpha <- 0.05
-lfcThreshold <- 0.6
+lfcThreshold <- 1
 
 res_diff_vs_undiff <- results(dds, contrast = c("condition", "diff", "undiff"), alpha = alpha, lfcThreshold = lfcThreshold)
 res_AICAR_vs_undiff <- results(dds, contrast = c("condition", "AICAR", "undiff"), alpha = alpha, lfcThreshold = lfcThreshold)
