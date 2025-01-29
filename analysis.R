@@ -1,24 +1,43 @@
-library(ggplot2)
-library(DESeq2)
-library(GEOquery)
-library(pheatmap)
-library(clusterProfiler)
-library(org.Hs.eg.db)
+if (!requireNamespace("librarian", quietly = TRUE)) install.packages("librarian")
+librarian::shelf(ggplot2, DESeq2, GEOquery, pheatmap, clusterProfiler, org.Hs.eg.db, 
+                 tidyverse, ComplexHeatmap, EnhancedVolcano, RColorBrewer, gprofiler2)
 
 rm(list = ls(all.names = TRUE))
 gc()
 
 source("scripts/helper_functions.R")
 
-# Load file (separator is space by default)
+#### Setup ####
+
+# Define directories
+in_dir <- file.path("data")
+work_dir <- file.path("results")
+fig_dir <- file.path(work_dir, "figs")
+out_dir <- file.path(work_dir, "output")
+
+dir.create(fig_dir, showWarnings = FALSE, recursive = TRUE)
+dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
+
+# Define file paths
+raw_count_file <- file.path(in_dir, "GSE282850_tovar-nishino_rnaseq_raw_counts.txt")
+metadata_file <- file.path(out_dir, "GSE282850_metadata.rds")
+
+# Load raw counts
 raw_data <- as.matrix(read.delim2("data/GSE282850_tovar-nishino_rnaseq_raw_counts.txt", header = TRUE, stringsAsFactors = FALSE))
+
+# Get metadata if not already available
+if (!file.exists(metadata_file)) {
+  gse <- getGEO("GSE282850", GSEMatrix = TRUE)
+  colData <- pData(phenoData(gse[[1]]))
+  saveRDS(colData, metadata_file)
+} else {
+  colData <- readRDS(metadata_file)
+}
+
+#### Create DESeq object ####
 
 cts <- apply(raw_data[, 2:ncol(raw_data)], 2, as.numeric)
 rownames(cts) <- raw_data[,1]
-
-# Get the metadata from GEO
-gse <- getGEO("GSE282850")  # Replace with your GSE ID
-colData <- pData(phenoData(gse[[1]]))
 
 # Rename metadata to match counts matrix
 rownames(colData) <- gsub('_mRNA', '', colData$description.1)
@@ -34,7 +53,7 @@ dds <- DESeqDataSetFromMatrix(countData = cts, colData = colData, design = ~ con
 dds
 
 # Pre-filtering
-smallestGroupSize <- 3
+smallestGroupSize <- 4
 keep <- rowSums(counts(dds) >= 10) >= smallestGroupSize
 dds <- dds[keep,]
 
