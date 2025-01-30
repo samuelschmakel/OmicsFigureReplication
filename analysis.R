@@ -23,7 +23,7 @@ raw_count_file <- file.path(in_dir, "GSE282850_tovar-nishino_rnaseq_raw_counts.t
 metadata_file <- file.path(out_dir, "GSE282850_metadata.rds")
 
 # Load raw counts
-raw_data <- as.matrix(read.delim2("data/GSE282850_tovar-nishino_rnaseq_raw_counts.txt", header = TRUE, stringsAsFactors = FALSE))
+raw_counts <- read.delim2(file.path(in_dir, "GSE282850_tovar-nishino_rnaseq_raw_counts.txt"), row.names = 1, check.names = FALSE)
 
 # Get metadata if not already available
 if (!file.exists(metadata_file)) {
@@ -34,23 +34,42 @@ if (!file.exists(metadata_file)) {
   colData <- readRDS(metadata_file)
 }
 
-#### Create DESeq object ####
+#### Create metadata table ####
 
-cts <- apply(raw_data[, 2:ncol(raw_data)], 2, as.numeric)
-rownames(cts) <- raw_data[,1]
+sample_names <- colnames(raw_counts)
+sampletype <- factor(c(rep("undiff_basal",4),rep("diff_basal",4),rep("diff_aicar",3), rep("diff_palm", 4)))
+diff_state <- factor(c(rep("undiff", 4), rep("diff", 11)))
+condition <- factor(c(rep("basal", 8), rep("aicar", 3), rep("palm", 4)))
 
-# Rename metadata to match counts matrix
-rownames(colData) <- gsub('_mRNA', '', colData$description.1)
+metadata <- data.frame(sampleName = sample_names, group = sampletype, diff_state = diff_state, condition = condition)
 
-# Add condition column to column data
-colData$condition <- factor(c("undiff","undiff","undiff","undiff","diff","diff","diff","diff","AICAR","AICAR","AICAR","palmitate","palmitate","palmitate","palmitate"), levels = c("undiff", "diff", "AICAR", "palmitate"))
-colData <- colData[, c("condition"), drop = FALSE]
+# Ensure correct ordering
+metadata$group <- relevel(metadata$group, ref = "undiff_basal")
+metadata$diff_state <- relevel(metadata$diff_state, ref = "undiff")
+metadata$condition <- relevel(metadata$condition, ref = "basal")
+
+#### Create DESeq objects ####
 
 # Validate alignment of counts and column data
-if (!all(colnames(cts) %in% rownames(colData))) stop("Sample names in countData and colData do not match.")
+if (!all(colnames(raw_counts) %in% metadata$sampleName)) stop("Sample names in countData and colData do not match.")
 
-dds <- DESeqDataSetFromMatrix(countData = cts, colData = colData, design = ~ condition)
+# Full DESeq dataset
+dds <- DESeqDataSetFromMatrix(countData = raw_counts, colData = metadata, design = ~ group)
 dds
+
+# basal undiff vs. diff subset
+
+metadata_basal <- metadata %>% filter(condition == "basal")
+basal_counts <- raw_counts[, metadata_basal$sampleName]
+dds_basal <- DESeqDataSetFromMatrix(countData = basal_counts, colData = metadata_basal, design = ~diff_state)
+
+# differentiated conditions subset
+
+metadata_diff <- metadata %>% filter(diff_state == "diff")
+diff_counts <- raw_counts[, metadata_diff$sampleName]
+dds_diff <- DESeqDataSetFromMatrix(countData = diff_counts, colData = metadata_diff, design = ~condition)
+
+#### DESeq Analysis ####
 
 # Pre-filtering
 smallestGroupSize <- 4
